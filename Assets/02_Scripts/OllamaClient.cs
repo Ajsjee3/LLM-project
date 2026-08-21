@@ -9,6 +9,7 @@ using UnityEngine.Networking;
 // 엔드포인트 => POST http://localhost:11434/api/chat
 public class OllamaClient : MonoBehaviour
 {
+    private const string NPC_API_URL = "http://127.0.0.1:8001/npc/chat";
     // 엔드포인트
     private const string API_URL = "http://localhost:11434/api/chat";
     // 모델
@@ -23,26 +24,59 @@ public class OllamaClient : MonoBehaviour
 
     // 스트리밍 방식
     [SerializeField] private bool isStreaming = true;
+    [SerializeField] private string playerId = "player1";
 
 
     // 요청 코루틴을 가동하는 래퍼 메서드 (Send Button이 호출할 메서드)
     public void SendToNPC(string npcType, string userText)
     {
-        var messages = new List<OllamaMessage>
-        {
-            new OllamaMessage
-            {
-                role = "system",
-                content = $"당신은 게임 속 {npcType} NPC입니다. 캐릭터의 역할을 유지하며 반드시 한글로 답하세요."
-            },
-            new OllamaMessage
-            {
-                role = "user",
-                content = userText
-            }
-        };
+        StartCoroutine(PostNpcRequest(npcType, userText));
+    }
 
-        SendChat(messages);
+    private IEnumerator PostNpcRequest(string npcType, string userText)
+    {
+        OnLoadingChanged?.Invoke(true);
+
+        string json = JsonUtility.ToJson(new NpcChatRequest
+        {
+            player_id = playerId,
+            npc_id = npcType,
+            message = userText
+        });
+
+        using UnityWebRequest request = new UnityWebRequest(NPC_API_URL, "POST");
+        request.uploadHandler = new UploadHandlerRaw(Encoding.UTF8.GetBytes(json));
+        request.downloadHandler = new DownloadHandlerBuffer();
+        request.timeout = 60;
+        request.SetRequestHeader("Content-Type", "application/json; charset=utf-8");
+
+        yield return request.SendWebRequest();
+
+        if (request.result == UnityWebRequest.Result.Success)
+        {
+            var response = JsonUtility.FromJson<NpcChatResponse>(request.downloadHandler.text);
+            OnResponseReceived?.Invoke(response.reply);
+        }
+        else
+        {
+            Debug.LogError($"[NPC Server] 요청 실패: {request.error}\n{request.downloadHandler.text}");
+        }
+
+        OnLoadingChanged?.Invoke(false);
+    }
+
+    [Serializable]
+    private class NpcChatRequest
+    {
+        public string player_id;
+        public string npc_id;
+        public string message;
+    }
+
+    [Serializable]
+    private class NpcChatResponse
+    {
+        public string reply = string.Empty;
     }
 
     public void SendChat(List<OllamaMessage> messages)
