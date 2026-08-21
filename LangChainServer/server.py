@@ -1,3 +1,14 @@
+# Qdrant VectorDB
+from langchain_ollama import OllamaEmbeddings
+from langchain_qdrant import QdrantVectorStore
+
+em = OllamaEmbeddings(model = "bge-m3")
+lore_db = QdrantVectorStore.from_existing_collection(
+    embedding=em,
+    collection_name="game_lore",
+    url = "http://localhost:6333"
+)
+
 # Redis
 import hashlib
 
@@ -35,8 +46,18 @@ def npc_chat(req: NpcChatRequest):
     # 1) 불러오기 : Redis에서 과거 이력을 로드
     past = history.messages
 
-    # 2) 호출: 과거 대화 + 이번 질문을 함께 전송
-    reply = build_chain(req.npc_id).invoke({"history": past, "message": req.message})
+    # 4) 마법사만 RAG 적용
+    if req.npc_id == "wizard":
+        #마법사만 도서관 지식을 활용
+        docs = retriever.invoke(req.message)
+        reply = rag_chain.invoke({
+            "context": format_docs(docs),
+            "history": past,
+            "message": req.message
+        })
+    else:
+        # 2) 호출: 과거 대화 + 이번 질문을 함께 전송
+        reply = build_chain(req.npc_id).invoke({"history": past, "message": req.message})
 
     # 3) 저장 : 이번 대화 내용 Redis 저장
     history.add_user_message(req.message)
@@ -90,3 +111,22 @@ NPC_PERSONAS = {
                   "'~라고', '~지' 같은 반말 섞인 어미를 쓴다. 한글로 2문장 이내로 답하라.",
     },
 }
+
+# RAG ======================================================
+retriever = lore_db.as_retriever(search_kwargs={"k": 2})
+
+# 마법사 전용 프롬프트 = 기존 페르소나 + RAG + 지난 대화
+rag_prompt = ChatPromptTemplate.from_messages([
+    ("system", persona("wizard")["system"] + "\n"
+     "아래 [도서관 지식]만을 근거로 답하시오. 모르면 모른다고 답하시오.\n"
+     "[도서관 지식]\n{context}"),
+    MessagesPlaceholder(variable_name="history"),
+    ("human", "{message}"),
+])
+
+#검색된 조각을 문자열
+def format_docs(docs):
+    return "\n".join(d.page_content for d in docs)
+
+# 마법사 전용 LangChain
+rag_chain = rag_prompt | llm | StrOutputParser()
