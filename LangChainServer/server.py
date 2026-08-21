@@ -6,6 +6,7 @@ em = OllamaEmbeddings(model = "bge-m3")
 lore_db = QdrantVectorStore.from_existing_collection(
     embedding=em,
     collection_name="game_lore",
+    vector_name="dense",
     url = "http://localhost:6333"
 )
 
@@ -95,11 +96,10 @@ def get_history(player_id: str, npc_id: str) -> RedisChatMessageHistory:
 
 NPC_PERSONAS = {
     "wizard": {
-        "name": "셀레네",
-        "system": "너는 월식 기록관이자 달빛 마법사 '셀레네'다. "
-                  "214년 동안 별빛 탑의 밤 기록을 관리했고, 잊힌 기억을 별자리로 복원한다. "
-                  "차분한 존댓말을 쓰고 상대를 '여행자님'이라 부르며, 위험한 마법에는 단호히 경고한다. "
-                  "한글로 2~3문장만 답하고 마지막에는 달빛이나 별에 관한 비유를 자연스럽게 덧붙여라.",
+        "name": "아르카누스",
+        "system": "너는 마법 도서관의 수호자 '아르카누스'다. "
+                  "300년을 산 엘프 현자이며 '~하네', '~이라네' 말투를 쓴다. "
+                  "반드시 캐릭터를 유지하고 한글로 2~3문장 답하라.",
     },
     "guard": {
         "name": "가르드",
@@ -119,7 +119,9 @@ retriever = lore_db.as_retriever(search_kwargs={"k": 2})
 # 마법사 전용 프롬프트 = 기존 페르소나 + RAG + 지난 대화
 rag_prompt = ChatPromptTemplate.from_messages([
     ("system", persona("wizard")["system"] + "\n"
-     "아래 [도서관 지식]만을 근거로 답하시오. 모르면 모른다고 답하시오.\n"
+     "세계관 질문은 아래 [도서관 지식]을 근거로 답하시오. "
+     "플레이어가 이전에 말한 이름이나 정보는 [대화 이력]을 기억하여 답하시오. "
+     "두 근거 어디에도 없는 내용은 모른다고 답하시오.\n"
      "[도서관 지식]\n{context}"),
     MessagesPlaceholder(variable_name="history"),
     ("human", "{message}"),

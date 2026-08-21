@@ -6,6 +6,7 @@ em = OllamaEmbeddings(model ="bge-m3")
 db = QdrantVectorStore.from_existing_collection(
     embedding= em,
     collection_name="game_lore",
+    vector_name="dense",
     url = "http://localhost:6333"
 )
 

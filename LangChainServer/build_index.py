@@ -4,6 +4,7 @@ from langchain_community.document_loaders import TextLoader
 from langchain_ollama import OllamaEmbeddings
 from langchain_qdrant import QdrantVectorStore
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from qdrant_client import QdrantClient, models
 
 
 LORE_PATH = Path(__file__).with_name("lore.md")
@@ -33,7 +34,14 @@ QdrantVectorStore.from_documents(
     embedding=embedding,
     url="http://localhost:6333",
     collection_name="game_lore",
+    vector_name="dense",
     force_recreate=True,
+)
+
+# 소규모 실습 데이터도 Dashboard의 Graph 탭에서 보이도록 HNSW를 생성한다.
+QdrantClient(url="http://localhost:6333").update_collection(
+    collection_name="game_lore",
+    optimizers_config=models.OptimizersConfigDiff(indexing_threshold=1),
 )
 
 print(f"인덱싱 완료: {len(chunks)}개 조각")
