@@ -1,0 +1,36 @@
+services:
+  redis:
+    image: redis/redis-stack-server:latest
+    container_name: rpg-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - rpg-redis-data:/data
+    environment:
+      REDIS_ARGS: "--appendonly yes"
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: rpg-qdrant
+    ports:
+      - "6333:6333" # REST API + 웹 대시보드
+      - "6334:6334" # gRPC (더 빠른 통신용, 이번 실습에선 미사용)
+    volumes:
+      - rpg-qdrant-data:/qdrant/storage
+
+  postgres:
+    image: postgres:16
+    container_name: rpg-postgres
+    environment:
+      POSTGRES_USER: rpg
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: rpgworld
+    ports:
+      - "5432:5432"
+    volumes:
+      - rpg-pg-data:/var/lib/postgresql/data
+
+volumes:
+  rpg-redis-data:
+  rpg-qdrant-data:
+  rpg-pg-data:
